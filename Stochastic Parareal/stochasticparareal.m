@@ -11,7 +11,7 @@ function [t_fine,U,ERROR,K,UG,UF] = stochasticparareal(f,n,tspan,u0,N,Ndg,Ndf,sa
 % N:           Number of 'proccesors' (temporal sub-intervals) (i.e. N = 40)
 % Ndg:         Number of coarse time steps (i.e. Ndg = 40)
 % Ndf:         Number of fine times steps (i.e. Ndf = 4000)
-% sample_rule: Sampling rule (i.e. 1 or 2)
+% sample_rule: Sampling rule (i.e. 1,2 3 or 4)
 % epsilon:     Error tolerance (i.e. 10^(-10))
 % m:           Number of samples to take at each sub-interval (i.e. m = 10)
 % sims:        Number of independent simulations of stochastic parareal (i.e. sims = 5)
