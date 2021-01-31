@@ -89,7 +89,7 @@ Ndg = 250;                             %no. of coarse steps (in each sub-interva
 Ndf = Ndg*75;                          %no. of fine steps (in each sub-interval)
 sample_rule = 2;                       %sampling rule to employ
 epsilon = 10^(-8);                     %error tolerance 
-m = 1;                                %no. of samples at each sub-interval
+m = 10;                                %no. of samples at each sub-interval
 sims = 1;                              %no. of independent sims
 
 %solve with stochastic parareal
