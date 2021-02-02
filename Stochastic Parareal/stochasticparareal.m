@@ -151,31 +151,13 @@ for s = 1:sims
         
         %CALCULATE CORRELATIONS BETWEEN DIMENSIONS (if n > 1)
         SIG = repmat(diag(ones(1,n)),[1 1 N+1]);         %multvar normals store correlation matrices for each time step in 3D array
-        theta = zeros(1,N+1);                            %Frank copula: store theta parameter for each time step in array
-        if n == 2
-            if sample_rule == 1 || sample_rule == 2     %find correlation matrices for multivariate normals
-                for i = I:N                                 
-                    temp = corr( u_fine(((Ndf/N)*(i-2))+2:((Ndf/N)*(i-1))+1,dim_indices) );
-                    SIG(:,:,i) = (temp + temp')/2;
-                end
-            elseif sample_rule == 3 || sample_rule == 4 %find theta parameter for Frank copula using Kendall's tau
-                for i = I:N
-                    tau = corr( u_fine(((Ndf/N)*(i-2))+2:((Ndf/N)*(i-1))+1,dim_indices),'type','kendall' );
-                    theta(i) = copulaparam('frank',tau(1,2));
-                end
-            end
-        elseif n > 2                                     
-            if sample_rule == 1 || sample_rule == 2      %find correlation matrices for multivariate normals
-                for i = I:N                              
-                    temp = corr( u_fine(((Ndf/N)*(i-2))+2:((Ndf/N)*(i-1))+1,dim_indices) );
-                    SIG(:,:,i) = (temp + temp')/2;
-                end
-            elseif sample_rule == 3 || sample_rule == 4  %multivariate Frank copula not implemented in MATLAB
-                error('Sampling rules 3 and 4 cannot be used for n >= 3. Select rule 1 or rule 2.')
+        if n > 1
+            for i = I:N
+                temp = corr( u_fine(((Ndf/N)*(i-2))+2:((Ndf/N)*(i-1))+1,dim_indices) );
+                SIG(:,:,i) = (temp + temp')/2;
             end
         end
-        
-        
+                
         %INITIAL VALUE SAMPLING AND PROPAGATION
         %sample initial values and propagate in parallel.
         chunks = N - I;                            %number of unconverged time chunks - 1
@@ -216,23 +198,17 @@ for s = 1:sims
                         elseif sample_rule == 4  %univariate uniform
                             sample_init_vals = random('uniform',u(index_n,dim_indices_next) - sqrt(3)*abs(uG(index_n,dim_indices_next) - uG(index_n,dim_indices)),u(index_n,dim_indices_next) + sqrt(3)*abs(uG(index_n,dim_indices_next) - uG(index_n,dim_indices)) );
                         end
-                    elseif n == 2
-                        if sample_rule == 1      %biivariate normal
-                            sample_init_vals = mvnrnd(uF(index_n,dim_indices),corr2cov(abs(uG(index_n,dim_indices_next) - uG(index_n,dim_indices)),SIG(:,:,index_n)));
-                        elseif sample_rule == 2  %biivariate normal
-                            sample_init_vals = mvnrnd(u(index_n,dim_indices_next),corr2cov(abs(uG(index_n,dim_indices_next) - uG(index_n,dim_indices)),SIG(:,:,index_n)));
-                        elseif sample_rule == 3  %bivariate Frank copula
-                            temp = copularnd('frank',theta(index_n),1);
-                            sample_init_vals = 2*sqrt(3)*abs(uG(index_n,dim_indices_next) - uG(index_n,dim_indices)).*temp + uF(index_n,dim_indices) - sqrt(3)*abs(uG(index_n,dim_indices_next) - uG(index_n,dim_indices));
-                        elseif sample_rule == 4  %bivariate Frank copula
-                            temp = copularnd('frank',theta(index_n),1);
-                            sample_init_vals = 2*sqrt(3)*abs(uG(index_n,dim_indices_next) - uG(index_n,dim_indices)).*temp + u(index_n,dim_indices_next) - sqrt(3)*abs(uG(index_n,dim_indices_next) - uG(index_n,dim_indices));
-                        end
-                    elseif n > 2
-                        if sample_rule == 1      %multivariate normal
+                    elseif n > 1
+                        if sample_rule == 1      %mutivariate normal
                             sample_init_vals = mvnrnd(uF(index_n,dim_indices),corr2cov(abs(uG(index_n,dim_indices_next) - uG(index_n,dim_indices)),SIG(:,:,index_n)));
                         elseif sample_rule == 2  %multivariate normal
                             sample_init_vals = mvnrnd(u(index_n,dim_indices_next),corr2cov(abs(uG(index_n,dim_indices_next) - uG(index_n,dim_indices)),SIG(:,:,index_n)));
+                        elseif sample_rule == 3  %multivariate t copula (with nu = 1)
+                            temp = copularnd('t',SIG(:,:,index_n),1,1);
+                            sample_init_vals = 2*sqrt(3)*abs(uG(index_n,dim_indices_next) - uG(index_n,dim_indices)).*temp + uF(index_n,dim_indices) - sqrt(3)*abs(uG(index_n,dim_indices_next) - uG(index_n,dim_indices));
+                        elseif sample_rule == 4  %multivariate t copula (with nu = 1)
+                            temp = copularnd('t',SIG(:,:,index_n),1,1);
+                            sample_init_vals = 2*sqrt(3)*abs(uG(index_n,dim_indices_next) - uG(index_n,dim_indices)).*temp + u(index_n,dim_indices_next) - sqrt(3)*abs(uG(index_n,dim_indices_next) - uG(index_n,dim_indices));
                         end
                     end
                     
