@@ -142,7 +142,7 @@ for s = 1:sims
     end
     
     
-    %PARAREAL ITERATIONS
+    %STOCHASTIC PARAREAL ITERATIONS
     for k = 2:N
         
         dim_indices = (n*(k-2)+1:n*(k-1));               %defines current indices
