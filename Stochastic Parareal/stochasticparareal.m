@@ -1,14 +1,14 @@
 function [t_fine,U,ERROR,K,UG,UF] = stochasticparareal(f,n,tspan,u0,N,Ndg,Ndf,sample_rule,epsilon,m,sims)
 %This function implements the stochastic parareal alogrithm to solve a
 % system of first order ODEs in a time-parallel fashion. Sampling rules are
-% based on multivariate normal probability distributions.
+% based on multivariate normal or t-copula probability distributions.
 
 %Inputs:
 % f:           Function handle for function to be solved (i.e. f = @(t,u)([u(1);u(2)])
-% n:           Dimensions of ODE system (i.e. n = 2)
+% n:           Dimension of ODE system (i.e. n = 2)
 % tspan:       Time interval over which to integrate (i.e. [0,12])
 % u0:          Initial conditions at tspan(1) (i.e. [0,1])
-% N:           Number of 'proccesors' (temporal sub-intervals) (i.e. N = 40)
+% N:           Number of temporal sub-intervals (i.e. N = 40)
 % Ndg:         Number of coarse time steps (i.e. Ndg = 40)
 % Ndf:         Number of fine times steps (i.e. Ndf = 4000)
 % sample_rule: Sampling rule (i.e. 1,2 3 or 4)
@@ -51,7 +51,7 @@ UF = cell(sims,1);                 %store fine solutions from independent simula
 % STOCHASTIC PARAREAL
 fprintf('Step 1: Begin stochastic parareal... \n')
 
-%Only uses if running more than one indpendent simulation of stochastic parareal.
+%Only used if running more than one indpendent simulation of stochastic parareal.
 for s = 1:sims
     
     % Give an indication as to where we are in the code for the console
@@ -150,7 +150,7 @@ for s = 1:sims
         
         
         %CALCULATE CORRELATIONS BETWEEN DIMENSIONS (if n > 1)
-        SIG = repmat(diag(ones(1,n)),[1 1 N+1]);         %multvar normals store correlation matrices for each time step in 3D array
+        SIG = repmat(diag(ones(1,n)),[1 1 N+1]);         %store correlation matrices for each time step in 3D array
         if n > 1
             for i = I:N
                 temp = corr( u_fine(((Ndf/N)*(i-2))+2:((Ndf/N)*(i-1))+1,dim_indices) );
@@ -161,9 +161,7 @@ for s = 1:sims
         %INITIAL VALUE SAMPLING AND PROPAGATION
         %sample initial values and propagate in parallel.
         chunks = N - I;                            %number of unconverged time chunks - 1
-        sampledF_trajecs = cell((chunks*m)+1,1);   %stores m*chunks trajectories of propagated 'sampled initial values' + the converged trajec in the Ith sub-interval
-        sampledG_trajecs = cell(chunks*m,1);       %stores m*chunks trajectories of propagated 'sampled initial values'
-        
+        sampledF_trajecs = cell((chunks*m)+1,1);   %stores m*chunks trajectories of propagated 'sampled initial values' + the converged trajec in the Ith sub-interval        
         parfor II = 1:(chunks*m)+1
             
             %in the first unconverged interval we have a correct initial
@@ -178,13 +176,9 @@ for s = 1:sims
                 
                 %ensure one of the samples in each chunk is the predictor-corrector value we just found.
                 if II <= chunks
-                    
                     %integrate using F on appropriate interval and store in cell array
                     [~,uf] = RK((t_sub(index_n):dtt:t_top(index_n)),u(index_n,dim_indices_next),f,'classic fourth-order');
                     sampledF_trajecs{II,:} = uf;
-                    
-                    [~,ug] = RK((t_sub(index_n):dt:t_top(index_n)),u(index_n,dim_indices_next),f,'classic fourth-order');
-                    sampledG_trajecs{II,:} = ug(end,:);
                     
                     %otherwise we sample from the appropriate distribution
                 else
@@ -215,17 +209,14 @@ for s = 1:sims
                     %integrate using F on appropriate interval and store in cell array
                     [~,uf] = RK((t_sub(index_n):dtt:t_top(index_n)),sample_init_vals,f,'classic fourth-order');
                     sampledF_trajecs{II,:} = uf;
-                    
-                    %integrate using G on appropriate interval and store in cell array
-                    [~,ug] = RK((t_sub(index_n):dt:t_top(index_n)),sample_init_vals,f,'classic fourth-order');
-                    sampledG_trajecs{II,:} = ug(end,:);
                 end
             end
         end
         
-        %LOCATING THE OPTIMAL TRAJECTORY
+        %LOCATING THE OPTIMAL INITAL VALUES
         time_index = mod((1:chunks*m)-1,chunks) + I + 1;      %locates correct interval indices from parfor loop
-        for i = I:N
+        opt_init_vals = NaN(N+1,n);                           %store optimal initial values
+        for i = I:N 
             trajec_indices = find(time_index == i);           %find trajectory indices
             
             %in the I(th) interval, the trajectory is already optimal having come from a converged initial value
@@ -233,7 +224,7 @@ for s = 1:sims
                 uF(i+1,dim_indices_next) = sampledF_trajecs{end,1}(end,:);
                 u_fine((Ndf/N)*(i-1)+1:((Ndf/N)*i)+1,dim_indices_next) = sampledF_trajecs{end,1};
                 
-                %for later unconverged intervals, select trajectory that is closest to the trajectory in the previous interval
+                %for later unconverged intervals, select trajectory that is closest to the fine trajectory in the previous interval
             else
                 %calculate errors in each dimension for each sampled trajec
                 diffs = zeros(m,n);
@@ -244,15 +235,21 @@ for s = 1:sims
                 %pick smallest 2-norm
                 [~,min_index] = min(vecnorm(diffs,2,2));
                 
-                %select the optimal trajectory in across dimensions
+                %select the optimal trajectory across dimensions
                 optimal_trajecF = sampledF_trajecs{trajec_indices(min_index),1};
-                optimal_trajecG = sampledG_trajecs{trajec_indices(min_index),1};
                 
                 %store solutions
-                uG(i+1,dim_indices_next) = optimal_trajecG(end,:);
+                opt_init_vals(i,:) = optimal_trajecF(1,:);
                 uF(i+1,dim_indices_next) = optimal_trajecF(end,:);
                 u_fine((Ndf/N)*(i-1)+2:(((Ndf/N)*i)+1),dim_indices_next) = optimal_trajecF(2:end,:);
             end
+        end
+        
+        %EXTRA G RUNS: need to run G from the new optimal initial values for
+        %correction in the next step.
+        parfor i = I+1:N
+            [~,ug] = RK((t_sub(i):dt:t_top(i)),opt_init_vals(i,:),f,'classic fourth-order');
+            uG(i+1,dim_indices_next) = ug(end,:);
         end
         
         dim_indices = (n*(k-1)+1:n*k);           %re-defines current indices
@@ -300,8 +297,6 @@ for s = 1:sims
         if I == N + 1
             break
         end
-        
-        
     end
     
     %save solutions for this independent simulation and do next (iff s > 1)
@@ -309,9 +304,7 @@ for s = 1:sims
     ERROR{s,1} = err;
     K(s,1) = k;
     UG{s,1} = uG(:,1:dim_indices_next(end));
-    UF{s,1} = uF(:,1:dim_indices_next(end));
-    
-    
+    UF{s,1} = uF(:,1:dim_indices_next(end));    
 end
 
 fprintf(' \n')
