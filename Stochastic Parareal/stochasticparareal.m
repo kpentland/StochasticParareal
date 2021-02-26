@@ -1,5 +1,5 @@
 function [t_fine,U,ERROR,K,UG,UF] = stochasticparareal(f,n,tspan,u0,N,Ndg,Ndf,sample_rule,epsilon,m,sims)
-%This function implements the stochastic parareal alogrithm to solve a
+%This function implements the stochastic parareal algorithm to solve a
 % system of first order ODEs in a time-parallel fashion. Sampling rules are
 % based on multivariate normal or t-copula probability distributions.
 
@@ -93,7 +93,7 @@ for s = 1:sims
         fine_trajecs(:,:,i) = uf(2:end,:);                                                  %store solution at fine resolution in 3D array
     end
     u_fine(2:end,dim_indices) = reshape(permute(fine_trajecs, [2 1 3]), n, [])';            %concatenate stored trajectories to save
-    
+    clear fine_trajecs
     
     %PREDICTOR-CORRECTOR STEP (for each sub-interval serially)
     for i = 1:N
@@ -142,22 +142,24 @@ for s = 1:sims
     end
     
     
-    %STOCHASTIC PARAREAL ITERATIONS
+    %PARAREAL ITERATIONS
     for k = 2:N
         
         dim_indices = (n*(k-2)+1:n*(k-1));               %defines current indices
         dim_indices_next = ((n*(k-1))+1:n*k);            %defines next indices
         
-        
         %CALCULATE CORRELATIONS BETWEEN DIMENSIONS (if n > 1)
-        SIG = repmat(diag(ones(1,n)),[1 1 N+1]);         %store correlation matrices for each time step in 3D array
+        %calculate correlations between finely propagated samples (for k > 2)
+        COR = repmat(diag(ones(1,n)),[1 1 N+1]);         %store correlation matrices for each time step in 3D array
         if n > 1
-            for i = I:N
-                temp = corr( u_fine(((Ndf/N)*(i-2))+2:((Ndf/N)*(i-1))+1,dim_indices) );
-                SIG(:,:,i) = (temp + temp')/2;
+            if k > 2
+                for i = I:N
+                    temp = corr( fine_trajecs_end(:,:,i),'rows','complete' );
+                    COR(:,:,i) = (temp + temp')/2;
+                end
             end
         end
-                
+        
         %INITIAL VALUE SAMPLING AND PROPAGATION
         %sample initial values and propagate in parallel.
         chunks = N - I;                            %number of unconverged time chunks - 1
@@ -184,25 +186,43 @@ for s = 1:sims
                 else
                     if n == 1
                         if sample_rule == 1      %univariate normal
-                            sample_init_vals = mvnrnd(uF(index_n,dim_indices),corr2cov(abs(uG(index_n,dim_indices_next) - uG(index_n,dim_indices)),SIG(:,:,index_n)));
+                            sample_init_vals = mvnrnd(uF(index_n,dim_indices),corr2cov(abs(uG(index_n,dim_indices_next) - uG(index_n,dim_indices)),COR(:,:,index_n)));
                         elseif sample_rule == 2  %univariate normal
-                            sample_init_vals = mvnrnd(u(index_n,dim_indices_next),corr2cov(abs(uG(index_n,dim_indices_next) - uG(index_n,dim_indices)),SIG(:,:,index_n)));
+                            sample_init_vals = mvnrnd(u(index_n,dim_indices_next),corr2cov(abs(uG(index_n,dim_indices_next) - uG(index_n,dim_indices)),COR(:,:,index_n)));
                         elseif sample_rule == 3  %univariate uniform
                             sample_init_vals = random('uniform',uF(index_n,dim_indices) - sqrt(3)*abs(uG(index_n,dim_indices_next) - uG(index_n,dim_indices)),uF(index_n,dim_indices) + sqrt(3)*abs(uG(index_n,dim_indices_next) - uG(index_n,dim_indices)) );
                         elseif sample_rule == 4  %univariate uniform
                             sample_init_vals = random('uniform',u(index_n,dim_indices_next) - sqrt(3)*abs(uG(index_n,dim_indices_next) - uG(index_n,dim_indices)),u(index_n,dim_indices_next) + sqrt(3)*abs(uG(index_n,dim_indices_next) - uG(index_n,dim_indices)) );
                         end
                     elseif n > 1
+                        %for each sample rule we need to ensure the covariance matric (cov) is positive semi-definite
+                        %before sampling from the distribution
                         if sample_rule == 1      %mutivariate normal
-                            sample_init_vals = mvnrnd(uF(index_n,dim_indices),corr2cov(abs(uG(index_n,dim_indices_next) - uG(index_n,dim_indices)),SIG(:,:,index_n)));
+                            sigma = abs(uG(index_n,dim_indices_next) - uG(index_n,dim_indices));
+                            cov = repmat(sigma,n,1).*repmat(sigma',1,n).*nearcorr(COR(:,:,index_n));
+                            min_eig = min(eig(cov));
+                            if min_eig < 0
+                                cov = cov + eye(n)*(abs(min_eig));
+                            end
+                            %[V,E] = eig(cov,'vector'); temp = V*(max(E,0).*V'); cov = (temp + temp')/2;
+                            sample_init_vals = mvnrnd(uF(index_n,dim_indices),cov);
                         elseif sample_rule == 2  %multivariate normal
-                            sample_init_vals = mvnrnd(u(index_n,dim_indices_next),corr2cov(abs(uG(index_n,dim_indices_next) - uG(index_n,dim_indices)),SIG(:,:,index_n)));
+                            sigma = abs(uG(index_n,dim_indices_next) - uG(index_n,dim_indices));
+                            cov = repmat(sigma,n,1).*repmat(sigma',1,n).*nearcorr(COR(:,:,index_n));
+                            min_eig = min(eig(cov));
+                            if min_eig < 0
+                                cov = cov + eye(n)*(abs(min_eig));
+                            end
+                            %[V,E] = eig(cov,'vector'); temp = V*(max(E,0).*V'); cov = (temp + temp')/2;
+                            sample_init_vals = mvnrnd(u(index_n,dim_indices_next),cov);
                         elseif sample_rule == 3  %multivariate t copula (with nu = 1)
-                            temp = copularnd('t',SIG(:,:,index_n),1,1);
-                            sample_init_vals = 2*sqrt(3)*abs(uG(index_n,dim_indices_next) - uG(index_n,dim_indices)).*temp + uF(index_n,dim_indices) - sqrt(3)*abs(uG(index_n,dim_indices_next) - uG(index_n,dim_indices));
+                            sigma = abs(uG(index_n,dim_indices_next) - uG(index_n,dim_indices));
+                            temp = copularnd('t',nearcorr(COR(:,:,index_n)),1,1);
+                            sample_init_vals = 2*sqrt(3)*sigma.*temp + uF(index_n,dim_indices) - sqrt(3)*sigma;
                         elseif sample_rule == 4  %multivariate t copula (with nu = 1)
-                            temp = copularnd('t',SIG(:,:,index_n),1,1);
-                            sample_init_vals = 2*sqrt(3)*abs(uG(index_n,dim_indices_next) - uG(index_n,dim_indices)).*temp + u(index_n,dim_indices_next) - sqrt(3)*abs(uG(index_n,dim_indices_next) - uG(index_n,dim_indices));
+                            sigma = abs(uG(index_n,dim_indices_next) - uG(index_n,dim_indices));
+                            temp = copularnd('t',nearcorr(COR(:,:,index_n)),1,1);
+                            sample_init_vals = 2*sqrt(3)*sigma.*temp + u(index_n,dim_indices_next) - sqrt(3)*sigma;
                         end
                     end
                     
@@ -216,6 +236,7 @@ for s = 1:sims
         %LOCATING THE OPTIMAL INITAL VALUES
         time_index = mod((1:chunks*m)-1,chunks) + I + 1;      %locates correct interval indices from parfor loop
         opt_init_vals = NaN(N+1,n);                           %store optimal initial values
+        fine_trajecs_end = zeros(m,n,N+1);                    %store the fine propagations of each sample (for correlation calculation in next k)
         for i = I:N 
             trajec_indices = find(time_index == i);           %find trajectory indices
             
@@ -230,6 +251,7 @@ for s = 1:sims
                 diffs = zeros(m,n);
                 for j = 1:m
                     diffs(j,:) = abs( sampledF_trajecs{trajec_indices(j),1}(1,:) - uF(i,dim_indices_next) );
+                    fine_trajecs_end(j,:,i) = sampledF_trajecs{trajec_indices(j),1}(end,:);
                 end
                 
                 %pick smallest 2-norm
@@ -244,10 +266,10 @@ for s = 1:sims
                 u_fine((Ndf/N)*(i-1)+2:(((Ndf/N)*i)+1),dim_indices_next) = optimal_trajecF(2:end,:);
             end
         end
-        
+              
         %EXTRA G RUNS: need to run G from the new optimal initial values for
         %correction in the next step.
-        parfor i = I+1:N
+        for i = I+1:N
             [~,ug] = RK((t_sub(i):dt:t_top(i)),opt_init_vals(i,:),f,'classic fourth-order');
             uG(i+1,dim_indices_next) = ug(end,:);
         end
@@ -311,5 +333,3 @@ fprintf(' \n')
 fprintf('Step 3: Stochastic Parareal complete. \n')
 
 end
-
-
