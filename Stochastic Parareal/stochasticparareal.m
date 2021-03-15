@@ -1,5 +1,5 @@
 function [t_fine,U,ERROR,K,UG,UF] = stochasticparareal(f,n,tspan,u0,N,Ndg,Ndf,sample_rule,epsilon,m,sims)
-%This function implements the stochastic parareal algorithm to solve a
+%This function implements the stochastic parareal alogrithm to solve a
 % system of first order ODEs in a time-parallel fashion. Sampling rules are
 % based on multivariate normal or t-copula probability distributions.
 
@@ -149,7 +149,6 @@ for s = 1:sims
         dim_indices_next = ((n*(k-1))+1:n*k);            %defines next indices
         
         %CALCULATE CORRELATIONS BETWEEN DIMENSIONS (if n > 1)
-        %calculate correlations between finely propagated samples (for k > 2)
         COR = repmat(diag(ones(1,n)),[1 1 N+1]);         %store correlation matrices for each time step in 3D array
         if n > 1
             if k > 2
@@ -164,7 +163,7 @@ for s = 1:sims
         %sample initial values and propagate in parallel.
         chunks = N - I;                            %number of unconverged time chunks - 1
         sampledF_trajecs = cell((chunks*m)+1,1);   %stores m*chunks trajectories of propagated 'sampled initial values' + the converged trajec in the Ith sub-interval        
-        parfor II = 1:(chunks*m)+1
+        for II = 1:(chunks*m)+1
             
             %in the first unconverged interval we have a correct initial
             %condition --> only need a single F run.
@@ -195,33 +194,33 @@ for s = 1:sims
                             sample_init_vals = random('uniform',u(index_n,dim_indices_next) - sqrt(3)*abs(uG(index_n,dim_indices_next) - uG(index_n,dim_indices)),u(index_n,dim_indices_next) + sqrt(3)*abs(uG(index_n,dim_indices_next) - uG(index_n,dim_indices)) );
                         end
                     elseif n > 1
-                        %for each sample rule we need to ensure the covariance matric (cov) is positive semi-definite
-                        %before sampling from the distribution
                         if sample_rule == 1      %mutivariate normal
                             sigma = abs(uG(index_n,dim_indices_next) - uG(index_n,dim_indices));
-                            cov = repmat(sigma,n,1).*repmat(sigma',1,n).*nearcorr(COR(:,:,index_n));
-                            min_eig = min(eig(cov));
-                            if min_eig < 0
-                                cov = cov + eye(n)*(abs(min_eig));
-                            end
-                            %[V,E] = eig(cov,'vector'); temp = V*(max(E,0).*V'); cov = (temp + temp')/2;
+                            B = COR(:,:,index_n) + eye(n);
+                            B = B - (B == 1)*eps + (B == -1)*eps;
+                            B = B - eye(n);
+                            cov = repmat(sigma,n,1).*repmat(sigma',1,n).*B;
                             sample_init_vals = mvnrnd(uF(index_n,dim_indices),cov);
                         elseif sample_rule == 2  %multivariate normal
                             sigma = abs(uG(index_n,dim_indices_next) - uG(index_n,dim_indices));
-                            cov = repmat(sigma,n,1).*repmat(sigma',1,n).*nearcorr(COR(:,:,index_n));
-                            min_eig = min(eig(cov));
-                            if min_eig < 0
-                                cov = cov + eye(n)*(abs(min_eig));
-                            end
-                            %[V,E] = eig(cov,'vector'); temp = V*(max(E,0).*V'); cov = (temp + temp')/2;
+                            B = COR(:,:,index_n) + eye(n);
+                            B = B - (B == 1)*eps + (B == -1)*eps;
+                            B = B - eye(n);
+                            cov = repmat(sigma,n,1).*repmat(sigma',1,n).*B;
                             sample_init_vals = mvnrnd(u(index_n,dim_indices_next),cov);
                         elseif sample_rule == 3  %multivariate t copula (with nu = 1)
                             sigma = abs(uG(index_n,dim_indices_next) - uG(index_n,dim_indices));
-                            temp = copularnd('t',nearcorr(COR(:,:,index_n)),1,1);
+                            B = COR(:,:,index_n) + eye(n);
+                            B = B - (B == 1)*eps + (B == -1)*eps;
+                            B = B - eye(n);
+                            temp = copularnd('t',B,1,1);
                             sample_init_vals = 2*sqrt(3)*sigma.*temp + uF(index_n,dim_indices) - sqrt(3)*sigma;
                         elseif sample_rule == 4  %multivariate t copula (with nu = 1)
                             sigma = abs(uG(index_n,dim_indices_next) - uG(index_n,dim_indices));
-                            temp = copularnd('t',nearcorr(COR(:,:,index_n)),1,1);
+                            B = COR(:,:,index_n) + eye(n);
+                            B = B - (B == 1)*eps + (B == -1)*eps;
+                            B = B - eye(n);
+                            temp = copularnd('t',B,1,1);
                             sample_init_vals = 2*sqrt(3)*sigma.*temp + u(index_n,dim_indices_next) - sqrt(3)*sigma;
                         end
                     end
