@@ -2,22 +2,23 @@
 %Below are example test problems using the parareal algorithm.
 %To run each test, simply run each section below independently.
 
-%% Test Problem 1: Bernoulli equation
+%% Test Problem 1: One-dimensional nonlinear ODE
 
 clear; close all; clc
 
 %Inputs:
-f = @(t,u)(2*(u/(1+t)) - (t*u)^2);     %function handle for ODE
+f = @(t,u)( sin(u)*cos(u) - 2*u + exp(-t/100)*sin(5*t) + log(1+t)*cos(t) );     %function handle for ODE
 n = 1;                                 %dimension of system
-tspan = [0,10];                        %time interval
-u0 = 2;                                %intial conditions
-N = 20;                                %no. of time sub-intervals steps
-Ndg = 20;                              %no. of coarse steps (in each sub-interval)
+tspan = [0,100];                        %time interval
+u0 = 1;                                %intial conditions
+N = 40;                                %no. of time sub-intervals steps
+Ndg = 80;                              %no. of coarse steps (in each sub-interval)
 Ndf = Ndg*100;                         %no. of fine steps (in each sub-interval)
 epsilon = 10^(-10);                    %error tolerance 
 
 %solve with parareal
 [t_fine,U,~,K] = parareal(f,n,tspan,u0,N,Ndg,Ndf,epsilon);
+
 
 %solve using the fine solver serially
 [~,u] = RK(t_fine,u0,f,'classic fourth-order');
@@ -25,15 +26,16 @@ epsilon = 10^(-10);                    %error tolerance
 %plot both solutions together
 figure(1)
 hold on
-plot(t_fine,u,'k','LineWidth',2)              %fine solver solution
-plot(t_fine(1:40:Ndf),U((1:40:Ndf),end),'ob') %parareal solution
+plot(t_fine,u,'k','LineWidth',2)
+plot(t_fine(1:10:Ndf),U((1:10:Ndf),end),'ob')
 xlabel('$t$','Interpreter','latex'); ylabel('$u_1(t)$','Interpreter','latex');
 grid on; box on;
-legend('northeast',{'$\mathcal{F}$ solution','$\mathcal{P}$ solution'},'Interpreter','latex')
-hold off
+xlim([0 18]); ylim([-2 2]);
+xticks((0:3:18))
+legend({'$\mathcal{F}$ solution','$\mathcal{P}$ solution'},'Interpreter','latex','location','northwest')
 
 
-%% Test Problem 2: Brusselator system
+%% Test Problem 2: Two-dimensional Brusselator system
 
 clear; close all; clc
 
@@ -67,7 +69,7 @@ box on; grid on
 hold off
 
 
-%% Test Problem 3: Lorenz system
+%% Test Problem 3: Three-dimensional Lorenz system
 
 clear; close all; clc
 
@@ -100,24 +102,22 @@ legend({'$\mathcal{F}$ solution','$\mathcal{P}$ solution'},'Interpreter','latex'
 box on; grid on;
 hold off
 
-
-%% Test Problem 4: Nonlinear ODE
+%% Test Problem 1: One-dimensional Bernoulli equation
 
 clear; close all; clc
 
 %Inputs:
-f = @(t,u)( sin(u)*cos(u) - 2*u + exp(-t/100)*sin(5*t) + log(1+t)*cos(t) );     %function handle for ODE
+f = @(t,u)(2*(u/(1+t)) - (t*u)^2);     %function handle for ODE
 n = 1;                                 %dimension of system
-tspan = [0,100];                        %time interval
-u0 = 1;                                %intial conditions
-N = 40;                                %no. of time sub-intervals steps
-Ndg = 80;                              %no. of coarse steps (in each sub-interval)
+tspan = [0,10];                        %time interval
+u0 = 2;                                %intial conditions
+N = 20;                                %no. of time sub-intervals steps
+Ndg = 20;                              %no. of coarse steps (in each sub-interval)
 Ndf = Ndg*100;                         %no. of fine steps (in each sub-interval)
 epsilon = 10^(-10);                    %error tolerance 
 
 %solve with parareal
 [t_fine,U,~,K] = parareal(f,n,tspan,u0,N,Ndg,Ndf,epsilon);
-
 
 %solve using the fine solver serially
 [~,u] = RK(t_fine,u0,f,'classic fourth-order');
@@ -125,16 +125,15 @@ epsilon = 10^(-10);                    %error tolerance
 %plot both solutions together
 figure(1)
 hold on
-plot(t_fine,u,'k','LineWidth',2)
-plot(t_fine(1:10:Ndf),U((1:10:Ndf),end),'ob')
+plot(t_fine,u,'k','LineWidth',2)              %fine solver solution
+plot(t_fine(1:40:Ndf),U((1:40:Ndf),end),'ob') %parareal solution
 xlabel('$t$','Interpreter','latex'); ylabel('$u_1(t)$','Interpreter','latex');
 grid on; box on;
-xlim([0 18]); ylim([-2 2]);
-xticks((0:3:18))
-legend({'$\mathcal{F}$ solution','$\mathcal{P}$ solution'},'Interpreter','latex','location','northwest')
+legend('northeast',{'$\mathcal{F}$ solution','$\mathcal{P}$ solution'},'Interpreter','latex')
+hold off
 
 
-%% Test Problem 5: Square limit cycle equations 
+%% Test Problem 5: Two-dimensional 'square limit cycle' system 
 
 clear; close all; clc
 
