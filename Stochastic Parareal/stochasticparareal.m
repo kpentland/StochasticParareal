@@ -234,11 +234,8 @@ for s = 1:sims
                 %for later unconverged intervals, select trajectory that is closest to the fine trajectory in the previous interval
             else
                 %calculate errors in each dimension for each sampled trajec
-                diffs = zeros(m,n);
-                for j = 1:m
-                    diffs(j,:) = abs( sampled_initial_values(trajec_indices(j),:) - uF(i,dim_indices_next) );
-                    fine_trajecs_end(j,:,i) = propagated_F_trajecs(trajec_indices(j),:);
-                end
+                diffs =  abs( sampled_initial_values(trajec_indices,:) - uF(i,dim_indices_next) );
+                fine_trajecs_end(:,:,i) = propagated_F_trajecs(trajec_indices,:); %store propagations for correlations later on
                 
                 %pick smallest 2-norm
                 [~,min_index] = min(vecnorm(diffs,2,2));
