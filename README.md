@@ -15,8 +15,8 @@ This code is written in MATLAB and requires the use of the following toolboxes (
 
 
 ## Files
-* Parareal: an implementation of the parareal algorithm.
-* Stochastic Parareal: an implementation of the stochastic parareal algorithm.
+* Parareal: an implementation of the time-parallel parareal algorithm.
+* Stochastic Parareal: an implementation of the time-parallel stochastic parareal algorithm.
 
 Both files contain each algorithm respectively (parareal.m and stochasticparareal.m), the RK.m function (an explicit Runge-Kutta solver that both main algorithms use), and the TestProblems.m scripts (scripts that give example use cases for each algorithm on various time-dependent ODE systems).
 
