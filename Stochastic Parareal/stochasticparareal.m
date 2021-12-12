@@ -1,4 +1,4 @@
-function [t,U,ERR,K,UG,UF] = stochasticparareal(f,tspan,u0,N,Ng,Nf,sample_rule,epsilon,m,sims)
+function [t,U,ERR,K,UG,UF] = stochasticparareal(f,tspan,u0,N,Ng,Nf,F,G,sample_rule,epsilon,m,sims)
 %This function implements the stochastic parareal alogrithm to solve a
 % system of first order ODEs in a time-parallel fashion. Sampling rules are
 % based on multivariate normal or t-copula probability distributions.
@@ -12,6 +12,8 @@ function [t,U,ERR,K,UG,UF] = stochasticparareal(f,tspan,u0,N,Ng,Nf,sample_rule,e
 % Nf:          Number of fine times steps (i.e. Ndf = 4000)
 % sample_rule: Sampling rule (i.e. 1,2 3 or 4)
 % epsilon:     Error tolerance (i.e. 10^(-10))
+% F:           Fine solver (i.e. 'RK4')
+% G:           Coarse solver (i.e. 'RK1')
 % m:           Number of samples to take at each sub-interval (i.e. m = 10)
 % sims:        Number of independent simulations of stochastic parareal (i.e. sims = 5)
 
@@ -76,7 +78,7 @@ for s = 1:sims
     
     %INITIAL COARSE SOLVE (k = 0)
     %Use G (coarse 'classic fourth-order') to find approximate initial conditions
-    [~,temp] = RK(t(1):dT:t(end),u0,f,'classic fourth-order');        %solve the ODE
+    [~,temp] = RK(t(1):dT:t(end),u0,f,G);        %solve the ODE
     uG(:,dim_indices) = temp(1:round(L_sub/dT):end,:);                %save solutions
     u(:,dim_indices) = uG(:,dim_indices);                             %save most up to date solution
     clear temp
@@ -85,7 +87,7 @@ for s = 1:sims
     %INITIAL FINE SOLVE (k = 0)
     % use F with previously found initial conditions to solve in parallel
     parfor i = 1:N
-        [~,temp] = RK((t(i):dt:t_shift(i)),uG(i,dim_indices),f,'classic fourth-order');    %solve ODE at fine resolution in each interval
+        [~,temp] = RK((t(i):dt:t_shift(i)),uG(i,dim_indices),f,F);    %solve ODE at fine resolution in each interval
         uF(i+1,dim_indices) = temp(end,:);                                                    %save the solution at sub-interval boundary
     end
     clear fine_trajecs temp
@@ -93,7 +95,7 @@ for s = 1:sims
     %PREDICTOR-CORRECTOR STEP (for each sub-interval serially)
     for i = 1:N
         %First need to find uG for next iteration using coarse solver
-        [~,temp] = RK((t(i):dT:t(i+1)),u(i,dim_indices_next),f,'classic fourth-order');
+        [~,temp] = RK((t(i):dT:t(i+1)),u(i,dim_indices_next),f,G);
         uG(i+1,dim_indices_next) = temp(end,:);
         
         %Do the predictor-corrector step and save solution
@@ -102,7 +104,7 @@ for s = 1:sims
     clear temp
     
     %error catch (due to explicit solver - if used)
-    if sum(isnan(uG),'all') ~= 0
+    if sum(isnan(uG(:,dim_indices_next)),'all') ~= 0
         error('NaN values in uG - select higher number of coarse steps')
         %K(s,1) = NaN;
         %break
@@ -166,7 +168,7 @@ for s = 1:sims
             %condition --> only need a single F run.
             if II == (chunks*m) + 1
                 %integrate using F on appropriate interval and store in cell array
-                [~,temp] = RK((t(I):dt:t_shift(I)),u(I,dim_indices_next),f,'classic fourth-order');
+                [~,temp] = RK((t(I):dt:t_shift(I)),u(I,dim_indices_next),f,F);
                 sampled_initial_values(II,:) = u(I,dim_indices_next);
                 propagated_F_trajecs(II,:) = temp(end,:);
             else
@@ -176,7 +178,7 @@ for s = 1:sims
                 %ensure one of the samples in each chunk is the predictor-corrector value we just found.
                 if II <= chunks
                     %integrate using F on appropriate interval and store in cell array
-                    [~,temp] = RK((t(index_n):dt:t_shift(index_n)),u(index_n,dim_indices_next),f,'classic fourth-order');
+                    [~,temp] = RK((t(index_n):dt:t_shift(index_n)),u(index_n,dim_indices_next),f,F);
                     sampled_initial_values(II,:) = u(index_n,dim_indices_next);
                     propagated_F_trajecs(II,:) = temp(end,:);
                     
@@ -213,7 +215,7 @@ for s = 1:sims
                     end
                     
                     %integrate using F on appropriate interval and store in cell array
-                    [~,temp] = RK((t(index_n):dt:t_shift(index_n)),sample,f,'classic fourth-order');
+                    [~,temp] = RK((t(index_n):dt:t_shift(index_n)),sample,f,F);
                     sampled_initial_values(II,:) = sample;
                     propagated_F_trajecs(II,:) = temp(end,:);
                 end
@@ -233,6 +235,7 @@ for s = 1:sims
                 
                 %for later unconverged intervals, select trajectory that is closest to the fine trajectory in the previous interval
             else
+                
                 %calculate errors in each dimension for each sampled trajec
                 diffs =  abs( sampled_initial_values(trajec_indices,:) - uF(i,dim_indices_next) );
                 fine_trajecs_end(:,:,i) = propagated_F_trajecs(trajec_indices,:); %store propagations for correlations later on
@@ -249,7 +252,7 @@ for s = 1:sims
         %EXTRA G RUNS: need to run G from the new optimal initial values for
         %correction in the next step.
         for i = I+1:N
-            [~,temp] = RK((t(i):dT:t_shift(i)),opt_init_vals(i,:),f,'classic fourth-order');
+            [~,temp] = RK((t(i):dT:t_shift(i)),opt_init_vals(i,:),f,G);
             uG(i+1,dim_indices_next) = temp(end,:);
         end
         clear temp
@@ -260,7 +263,7 @@ for s = 1:sims
         %PREDICTOR-CORRECTOR STEP (for each sub-interval serially)
         for i = I:N
             %First need to find uG for next iteration using coarse solver
-            [~,temp] = RK((t(i):dT:t(i+1)),u(i,dim_indices_next),f,'classic fourth-order');
+            [~,temp] = RK((t(i):dT:t(i+1)),u(i,dim_indices_next),f,G);
             uG(i+1,dim_indices_next) = temp(end,:);
             
             %Do the predictor-corrector step and save solution

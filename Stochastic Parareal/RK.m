@@ -1,30 +1,35 @@
 function [t,u] = RK(t,u0,f,method)
-%This function is an explicit Runge-Kutta ODE solver that solves systems 
-% of ODES using either the 'classic fourth-order' or 'explicit midpoint'
-% method depending on user preference.
+%This function is a Runge-Kutta ODE solver that uses a specified RK method
+% depending on user preference.
 
 %Inputs:
 % t     : Time interval (i.e. t = (0:0.1:10))
-% u0    : Initial conditions (i.e u0 = [1,3.07])
-% f     : Function handle for ODEs to be solved (i.e. f = @(t,u)([1 +
-% (u(1)^2)*u(2) - (3+1)*u(1); 3*u(1) - (u(1)^2)*u(2)]) for the Brusselator
-% system).
-% method: Runge-Kutta method to be used (i.e. 'classic fourth-order')
+% y0    : Initial condition (row vector)
+% f     : Function handle of ODEs to be solved
+% method: Runge-Kutta method to be used
 
 %Outputs:
-% t    : Time interval (same as input)
-% u    : Solution in matrix form (time steps by dimension of problem)
+% t    : Time interval
+% y    : Solution in matrix form (time steps by dimension of problem)
 
 %Select the method to be used.
 switch method
-    case 'classic fourth-order'
-        a = [0,0,0,0;0.5,0,0,0;0,0.5,0,0;0,0,1,0];
-        b = [1/6,1/3,1/3,1/6];
-        c = [0,0.5,0.5,1];
-    case 'explicit midpoint'
+    case 'RK1' %Euler's method
+        a = 0;
+        b = 1; 
+        c = 0;
+    case 'RK2' %midpoint method
         a = [0,0;0.5,0];
         b = [0,1];
         c = [0,0.5];
+    case 'RK3' %Kutta's third-order method
+        a = [0,0,0;0.5,0,0;-1,2,0];
+        b = [1/6,2/3,1/6];
+        c = [0,0.5,1];
+    case 'RK4' %classic fourth-order method
+        a = [0,0,0,0;0.5,0,0,0;0,0.5,0,0;0,0,1,0];
+        b = [1/6,1/3,1/3,1/6];
+        c = [0,0.5,0.5,1];
     otherwise
         fprintf('Error: Please define the Runge Kutta method. \n')
 end
