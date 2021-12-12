@@ -1,48 +1,48 @@
-function [t,u,err,k] = parareal(f,tspan,u0,N,Ng,Nf,epsilon)
-%This function will implement the parareal alogrithm for a system of first
-% order ODEs. This version only updates time sub-intervals that have not
-% converged.
+function [t,u,err,k] = parareal(f,tspan,u0,N,Ng,Nf,epsilon,F,G)
+%This function implements the parareal alogrithm for a system of first
+% order ODEs.
 
 %Inputs:
-% f:           Function handle for function to be solved (i.e. f = @(t,u)([u(1);u(2)])
+% f:           Function handle for system to be solved (i.e. f = @(t,u)([u(1);-u(2)])
 % tspan:       Time interval over which to integrate (i.e. [0,12])
 % u0:          Initial conditions at tspan(1) (i.e. [0,1])
-% N:           Number of 'proccesors' (temporal sub-intervals) (i.e. N = 40)
+% N:           Number of 'processors' (temporal sub-intervals) (i.e. N = 40)
 % Ng:          Number of coarse time steps (i.e. Ng = 40)
 % Nf:          Number of fine times steps (i.e. Nf = 4000)
-% epsilon:     Error tolerance (i.e. 10^(-10))
+% epsilon:     Error tolerance (i.e. 10^(-6))
+% F:           Selected fine solver (i.e. 'RK4') 
+% G:           Selected coarse solver (i.e. 'RK1') 
 
 %Outputs:
 % t:           Vector of time sub-intervals (at which solutions located)
-% u:           Parareal solution to ODE system on the mesh given by 't'
-% err:         Error at each time sub-interval at each k
+% u:           Solution to ODE system on the mesh given by 't'
+% err:         Successive errors at each time sub-interval and each k
 % k:           Iterations taken until convergence
 
 %INITIALISATION
-fprintf('Initialising parareal... \n')
 
 n = length(u0);                    %dimension of the ODE system
 L = tspan(2) - tspan(1);           %length of interval
 L_sub = L/N;                       %length of sub-interval
 dT = L/Ng;                         %coarse time step
 dt = L/Nf;                         %fine time step
-t = (tspan(1):L_sub:tspan(2));     %time sub-interval vector  
-t_shift = t(2:end);                %shifted time vector for parfor loop below
+t = (tspan(1):L_sub:tspan(2));     %time sub-intervals (the mesh)  
+t_shift = t(2:end);                %shifted mesh for parfor loops below
+I = 1;                             %counter for how many intervals have converged
 
-if mod(Ng,N)~=0 || mod(Nf,Ng)~=0  %number time steps must be multiples of each other
-    fprintf("Nf must be a multiple of Ng and Ng must be a multiple of N - change time steps")
+% error catch: sub-interval, coarse, and fine time steps must be multiples of each other
+if mod(Ng,N)~=0 || mod(Nf,Ng)~=0
+    fprintf("Nf must be a multiple of Ng and Ng must be a multiple of N - change time steps!")
     return
 end
 
-% solution storage matrices (time step x system dimension*iteration)
-u = zeros(N+1,n*(N+1));      %stores parareal solutions (at sub-interval time steps)
-uG = zeros(N+1,n*(N+1));     %stores coarse solutions (at sub-interval time steps)
-uF = zeros(N+1,n*(N+1));     %stores fine solutions (at sub-interval time steps)
+% solution storage matrices (sub-interval mesh x system dimension*iterations)
+u = NaN(N+1,n*(N+1));        %predictor-corrected (refined) solutions
+uG = NaN(N+1,n*(N+1));       %coarse solutions
+uF = NaN(N+1,n*(N+1));       %fine solutions
+err = NaN(N+1,N);            %successive errors
 
-err = zeros(N+1,N);          %error at each time slice
-I = 1;                       %counts how many intervals have converged
-
-% define the initial condition to be exact at start of each iteration
+% pre-set the exact initial condition at the start of each iteration
 u(1,:) = repmat(u0,1,N+1);
 uG(1,:) = u(1,:);
 uF(1,:) = u(1,:);
@@ -50,12 +50,10 @@ uF(1,:) = u(1,:);
 
 %PARAREAL ALGORITHM
 
-%Step 1 (k = 0): Use G (coarse solver) to find 'rough' initial conditions
-fprintf('Stage 1: Inital coarse solve...')
-[~,temp] = RK(t(1):dT:t(end),u0,f,'classic fourth-order');
+%Step 1 (k = 0): Use G (coarse solver) to find approximate initial conditions
+[~,temp] = RK(t(1):dT:t(end),u0,f,G);
 uG(:,1:n) = temp(1:round(L_sub/dT):end,:); clear temp;
 u(:,1:n) = uG(:,1:n);
-fprintf('done. \n')
 
 
 %Step 2 (k>0): Use F (fine solver) in parallel using current best initial
@@ -64,7 +62,7 @@ for k = 1:N
     
     % give an indication as to which iteration we're at for the console
     if k == 1
-        fprintf('Stage 2: Parareal iteration number (out of %.0f): 1 ',N)
+        fprintf('Parareal iteration number (out of %.0f): 1 ',N)
     elseif k == N
         fprintf('%.0f.',N)
     else
@@ -76,7 +74,7 @@ for k = 1:N
     dim_indices = (n*(k-1)+1:n*k);        %current indices
     dim_indices_next = ((n*k)+1:n*(k+1)); %next indices
     parfor i = I:N
-        [~,u_f] = RK((t(i):dt:t_shift(i)),u(i,dim_indices),f,'classic fourth-order');
+        [~,u_f] = RK((t(i):dt:t_shift(i)),u(i,dim_indices),f,F);
         uF(i+1,dim_indices) = u_f(end,:);    %save the solution from final time step
     end
     
@@ -84,7 +82,7 @@ for k = 1:N
     %Predictor-corrector step (for each sub-interval serially)
     for i = I:N
         %First need to find uG for next iteration step using coarse solver
-        [~,u_temp] = RK((t(i):dT:t(i+1)),u(i,dim_indices_next),f,'classic fourth-order');
+        [~,u_temp] = RK((t(i):dT:t(i+1)),u(i,dim_indices_next),f,G);
         uG(i+1,dim_indices_next) = u_temp(end,:);
         
         %Do the predictor-corrector step and save final solution value
@@ -92,14 +90,17 @@ for k = 1:N
     end
     
     %error catch
-    if sum(isnan(uG),'all') ~= 0
-        error("NaN values in initial coarse solve - increase Ng!")
+    a = 0;
+    if sum(isnan(uG(:,dim_indices_next)),'all') ~= 0
+%         error("NaN values in initial coarse solve - increase Ng!")
+        a = NaN;
+        break
     end
     
     %%CONVERGENCE CHECKS
     %if an error is small enough up to a certain time interval, all solutions are saved and the
     %next k considers only unconverged chunks
-    err(:,k) = vecnorm( u(:,dim_indices_next) - u(:,dim_indices), inf, 2)';   %error at each time step
+    err(:,k) = vecnorm( u(:,dim_indices_next) - u(:,dim_indices), inf, 2)';
     
     II = I;
     for p = II:N
@@ -128,10 +129,15 @@ for k = 1:N
     end
 end
 
-%output the matrix containing the solutions after 1,2,3...k iterations
-u = u(:,(n+1):n*(k+1));   
+%output the matrix containing the solutions/errors after 1,2,3...k iterations
+u = u(:,(n+1):n*(k+1));    
+err = err(:,1:k); 
 
-fprintf(' \n')
-fprintf('Step 3: Parareal complete. \n')
+% error catch
+if isnan(a)
+    k = NaN;
+end
+
+fprintf('Done. \n')
 
 end

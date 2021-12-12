@@ -13,10 +13,12 @@ u0 = 1;                                 %intial conditions
 N = 40;                                 %no. of time sub-intervals steps
 Ng = 80;                                %no. of coarse steps (in each sub-interval)
 Nf = Ng*100;                            %no. of fine steps (in each sub-interval)
-epsilon = 10^(-10);                     %error tolerance 
+epsilon = 10^(-10);                     %error tolerance
+G = 'RK4';                              %coarse solver
+F = 'RK4';                              %fine solver
 
 %solve with parareal
-[t,U,err,K] = parareal(f,tspan,u0,N,Ng,Nf,epsilon);
+[t,U,err,K] = parareal(f,tspan,u0,N,Ng,Nf,epsilon,F,G);
 
 %solve the ODE in parallel with fine solver using initial conditions from parareal
 dt = (tspan(2)-tspan(1))/Nf;    t_fine = (tspan(1):dt:tspan(2));
@@ -25,8 +27,8 @@ n = length(u0);                       %dimension of system
 dim_indices = (n*(K-1)+1:n*K);        %final solution indices
 U_fine = zeros(Nf+1,length(u0));
 fine_trajecs = cell(N,1);
-parfor i = 1:N
-    [~,temp] = RK((t(i):dt:t(i+1)),U(i,dim_indices),f,'classic fourth-order');
+for i = 1:N
+    [~,temp] = RK((t(i):dt:t(i+1)),U(i,dim_indices),f,F);
     if i < N
     fine_trajecs{i,1} = temp(1:end-1,:);                 
     else
@@ -37,7 +39,7 @@ U_fine(1:end,:) = vertcat(fine_trajecs{:,1});
     
     
 %solve using the fine solver serially (for comparison)
-[~,u_fine] = RK((tspan(1):dt:tspan(2)),u0,f,'classic fourth-order');
+[~,u_fine] = RK((tspan(1):dt:tspan(2)),u0,f,F);
 
 %plot both solutions together
 figure(1)
@@ -63,9 +65,11 @@ N = 25;                                %no. of time sub-intervals steps
 Ng = 25;                               %no. of coarse steps (in each sub-interval)
 Nf = Ng*100;                           %no. of fine steps (in each sub-interval)
 epsilon = 10^(-6);                     %error tolerance 
+G = 'RK4';                             %coarse solver
+F = 'RK4';                             %fine solver
 
 %solve with parareal
-[t,U,err,K] = parareal(f,tspan,u0,N,Ng,Nf,epsilon);
+[t,U,err,K] = parareal(f,tspan,u0,N,Ng,Nf,epsilon,F,G);
 
 %solve the ODE in parallel with fine solver using initial conditions from parareal
 dt = (tspan(2)-tspan(1))/Nf;    t_fine = (tspan(1):dt:tspan(2));
@@ -75,7 +79,7 @@ dim_indices = (n*(K-1)+1:n*K);        %final solution indices
 U_fine = zeros(Nf+1,length(u0));
 fine_trajecs = cell(N,1);
 parfor i = 1:N
-    [~,temp] = RK((t(i):dt:t(i+1)),U(i,dim_indices),f,'classic fourth-order');
+    [~,temp] = RK((t(i):dt:t(i+1)),U(i,dim_indices),f,F);
     if i < N
     fine_trajecs{i,1} = temp(1:end-1,:);                 
     else
@@ -85,7 +89,7 @@ end
 U_fine(1:end,:) = vertcat(fine_trajecs{:,1});
 
 %solve using the fine solver serially (for comparison)
-[~,u_fine] = RK((tspan(1):dt:tspan(2)),u0,f,'classic fourth-order');
+[~,u_fine] = RK((tspan(1):dt:tspan(2)),u0,f,F);
 
 %plot both solutions together in 2D phase space
 figure(1)
@@ -113,9 +117,11 @@ N = 50;                                %no. of time sub-intervals steps
 Ng = 250;                              %no. of coarse steps (in each sub-interval)
 Nf = Ng*75;                            %no. of fine steps (in each sub-interval)
 epsilon = 10^(-8);                     %error tolerance 
+G = 'RK4';                             %coarse solver
+F = 'RK4';                             %fine solver
 
 %solve with parareal
-[t,U,err,K] = parareal(f,tspan,u0,N,Ng,Nf,epsilon);
+[t,U,err,K] = parareal(f,tspan,u0,N,Ng,Nf,epsilon,F,G);
 
 %solve the ODE in parallel with fine solver using initial conditions from parareal
 dt = (tspan(2)-tspan(1))/Nf;    t_fine = (tspan(1):dt:tspan(2));
@@ -125,7 +131,7 @@ dim_indices = (n*(K-1)+1:n*K);        %final solution indices
 U_fine = zeros(Nf+1,length(u0));
 fine_trajecs = cell(N,1);
 parfor i = 1:N
-    [~,temp] = RK((t(i):dt:t(i+1)),U(i,dim_indices),f,'classic fourth-order');
+    [~,temp] = RK((t(i):dt:t(i+1)),U(i,dim_indices),f,F);
     if i < N
     fine_trajecs{i,1} = temp(1:end-1,:);                 
     else
@@ -135,7 +141,7 @@ end
 U_fine(1:end,:) = vertcat(fine_trajecs{:,1});
 
 %solve using the fine solver serially (for comparison)
-[~,u_fine] = RK((tspan(1):dt:tspan(2)),u0,f,'classic fourth-order');
+[~,u_fine] = RK((tspan(1):dt:tspan(2)),u0,f,F);
 
 
 %plot the solution in 3D phase space
@@ -163,9 +169,11 @@ N = 20;                                %no. of time sub-intervals steps
 Ng = 20;                               %no. of coarse steps (in each sub-interval)
 Nf = Ng*100;                           %no. of fine steps (in each sub-interval)
 epsilon = 10^(-10);                    %error tolerance 
+G = 'RK4';                             %coarse solver
+F = 'RK4';                             %fine solver
 
 %solve with parareal
-[t,U,err,K] = parareal(f,tspan,u0,N,Ng,Nf,epsilon);
+[t,U,err,K] = parareal(f,tspan,u0,N,Ng,Nf,epsilon,F,G);
 
 %solve the ODE in parallel with fine solver using initial conditions from parareal
 dt = (tspan(2)-tspan(1))/Nf;    t_fine = (tspan(1):dt:tspan(2));
@@ -175,7 +183,7 @@ dim_indices = (n*(K-1)+1:n*K);        %final solution indices
 U_fine = zeros(Nf+1,length(u0));
 fine_trajecs = cell(N,1);
 parfor i = 1:N
-    [~,temp] = RK((t(i):dt:t(i+1)),U(i,dim_indices),f,'classic fourth-order');
+    [~,temp] = RK((t(i):dt:t(i+1)),U(i,dim_indices),f,F);
     if i < N
     fine_trajecs{i,1} = temp(1:end-1,:);                 
     else
@@ -185,7 +193,7 @@ end
 U_fine(1:end,:) = vertcat(fine_trajecs{:,1});
 
 %solve using the fine solver serially (for comparison)
-[~,u_fine] = RK((tspan(1):dt:tspan(2)),u0,f,'classic fourth-order');
+[~,u_fine] = RK((tspan(1):dt:tspan(2)),u0,f,F);
 
 %plot both solutions together
 figure(1)
@@ -210,9 +218,11 @@ N = 30;                                %no. of time sub-intervals steps
 Ng = 30;                               %no. of coarse steps (in each sub-interval)
 Nf = Ng*100;                           %no. of fine steps (in each sub-interval)
 epsilon = 10^(-8);                     %error tolerance 
+G = 'RK4';                             %coarse solver
+F = 'RK4';                             %fine solver
 
 %solve with parareal
-[t,U,err,K] = parareal(f,tspan,u0,N,Ng,Nf,epsilon);
+[t,U,err,K] = parareal(f,tspan,u0,N,Ng,Nf,epsilon,F,G);
 
 %solve the ODE in parallel with fine solver using initial conditions from parareal
 dt = (tspan(2)-tspan(1))/Nf;    t_fine = (tspan(1):dt:tspan(2));
@@ -222,7 +232,7 @@ dim_indices = (n*(K-1)+1:n*K);        %final solution indices
 U_fine = zeros(Nf+1,length(u0));
 fine_trajecs = cell(N,1);
 parfor i = 1:N
-    [~,temp] = RK((t(i):dt:t(i+1)),U(i,dim_indices),f,'classic fourth-order');
+    [~,temp] = RK((t(i):dt:t(i+1)),U(i,dim_indices),f,F);
     if i < N
     fine_trajecs{i,1} = temp(1:end-1,:);                 
     else
@@ -232,7 +242,7 @@ end
 U_fine(1:end,:) = vertcat(fine_trajecs{:,1});
 
 %solve using the fine solver serially (for comparison)
-[~,u_fine] = RK((tspan(1):dt:tspan(2)),u0,f,'classic fourth-order');
+[~,u_fine] = RK((tspan(1):dt:tspan(2)),u0,f,F);
 
 %plot both solutions together
 figure(1)
