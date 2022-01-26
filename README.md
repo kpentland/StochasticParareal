@@ -2,7 +2,7 @@
 
 This repository contains sample code for the pre-print by Pentland, Tamborrino, Sammadar & Appel - "Stochastic parareal: a novel application of probabilistic methods to time-parallelisation" (https://arxiv.org/abs/2106.10139).
 
-This code is written in MATLAB and requires the use of the following toolboxes (noting there may be dependencies I have overlooked):
+This code is written in MATLAB and requires the use of the following toolboxes (note there may be dependencies I have overlooked):
 * Parallel Computing Toolbox.
 * Statistics and Machine Learning.
 
