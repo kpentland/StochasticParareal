@@ -124,8 +124,8 @@ Ng = 250;                              %no. of coarse steps (in each sub-interva
 Nf = Ng*75;                            %no. of fine steps (in each sub-interval)
 sample_rule = 2;                       %sampling rule to employ
 epsilon = 10^(-8);                     %error tolerance 
-G = 'RK4';                             %coarse solver
 F = 'RK4';                             %fine solver
+G = 'RK4';                             %coarse solver
 m = 10;                                %no. of samples at each sub-interval
 sims = 1;                              %no. of independent sims
 
